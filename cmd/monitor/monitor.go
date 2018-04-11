@@ -3,97 +3,131 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math/rand"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	projectv1client "github.com/openshift/client-go/project/clientset/versioned/typed/project/v1"
+	"github.com/adambkaplan/openshift-template-monitor/pkg/templates"
+	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	restclient "k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
-func main() {
-	addr := flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+const (
+	defaultPort        = ":8080"
+	defaultKeepObjects = false
+	defaultInterval    = 300
+	defaultTimeout     = 60
+)
+
+var (
+	addr           string
+	keepObjects    bool
+	interval       int
+	timeout        int
+	metricsHandler http.Handler
+)
+
+func init() {
+	flag.StringVar(&addr, "listen-address", defaultPort, "The address to listen on for HTTP requests.")
+	flag.BoolVar(&keepObjects, "keep-objects", defaultKeepObjects, "Keep objects created by the smoketest")
+	flag.IntVar(&interval, "interval", defaultInterval, "Interval to run the smoketest job (seconds)")
+	flag.IntVar(&timeout, "timeout", defaultTimeout, "Timeout for launching a Template Instance (seconds)")
 	flag.Parse()
+}
 
+func main() {
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
+
+	glog.V(0).Info("Started template smoketest application")
+	glog.V(2).Infof("Listening at address %s", addr)
+	glog.V(2).Infof("Keeping test artifact objects: %t", keepObjects)
+	glog.V(2).Infof("Test interval: %d", interval)
+	glog.V(2).Infof("Instance launch timeout: %d", timeout)
+
+	metricsHandler = prometheus.Handler()
 	http.HandleFunc("/healthz", handleHealthz)
-	http.Handle("/metrics", prometheus.Handler())
+	http.HandleFunc("/metrics", handleMetrics)
 
-	appCreateLatency := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "app_create_latency_seconds",
-			Help:    "The latency of various app creation steps.",
-			Buckets: []float64{1, 10, 60, 3 * 60, 5 * 60},
+	templateTestGauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "template_test_last_ran",
+			Help: "Time that the template smoketest last ran",
 		},
-		[]string{"step"},
+		[]string{"result", "reason"},
 	)
-	prometheus.MustRegister(appCreateLatency)
-
-	go http.ListenAndServe(*addr, nil)
-
-	go runAppCreateSim(appCreateLatency, 1*time.Second)
-
-	select {}
-}
-
-// Creates a rest config object that is used for other client calls.
-// TODO: we should probably not panic, instead expose this as an error in prometheus.
-func getRestConfig() *restclient.Config {
-	// Instantiate loader for kubeconfig file.
-	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		clientcmd.NewDefaultClientConfigLoadingRules(),
-		&clientcmd.ConfigOverrides{},
+	templateLaunchGauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "template_test_launch_duration_seconds",
+			Help: "Duration the cluster last took to launch a test template instance.",
+		},
+		[]string{"result", "reason"},
 	)
+	totalDurationGauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "template_test_total_duration_seconds",
+			Help: "Total duration of the previous test.",
+		},
+		[]string{"result", "reason"},
+	)
+	prometheus.MustRegister(templateTestGauge, templateLaunchGauge, totalDurationGauge)
 
-	// Get a rest.Config from the kubeconfig file.  This will be passed into all
-	// the client objects we create.
-	restconfig, err := kubeconfig.ClientConfig()
-	if err != nil {
-		panic(err)
-	}
+	go http.ListenAndServe(addr, nil)
+	go runTemplateSmoketest(time.Duration(interval)*time.Second, templateTestGauge, templateLaunchGauge, totalDurationGauge)
 
-	return restconfig
-}
-
-// Cleans up all objects that this monitoring command creates
-// TODO: Add prometheus metrics for timing and errors.
-// TODO: Don't panic as that would kill the prometheus end point as well.
-func cleanupWorkspace(project string, restconfig *restclient.Config) {
-	// Create an OpenShift project/v1 client.
-	projectclient, err := projectv1client.NewForConfig(restconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	// Delete the project that contains the kube resources we've created
-	err = projectclient.Projects().Delete(project, &metav1.DeleteOptions{})
-	if err != nil {
-		panic(err)
-	}
+	<-exit
+	glog.V(0).Info("Exiting template smoketest application")
+	glog.Flush()
 }
 
 func handleHealthz(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "ok")
+	glog.V(1).Info("GET /healthz")
 }
 
-func runAppCreateSim(metric *prometheus.HistogramVec, interval time.Duration) {
-	steps := map[string]struct {
-		min time.Duration
-		max time.Duration
-	}{
-		"new-app": {min: 1 * time.Second, max: 5 * time.Second},
-		"build":   {min: 1 * time.Minute, max: 5 * time.Minute},
-		"deploy":  {min: 1 * time.Minute, max: 5 * time.Minute},
-		"expose":  {min: 10 * time.Second, max: 1 * time.Minute},
-	}
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+func handleMetrics(w http.ResponseWriter, r *http.Request) {
+	metricsHandler.ServeHTTP(w, r)
+	glog.V(1).Info("GET /metrics")
+}
+
+func runTemplateSmoketest(interval time.Duration, testGauge, launchGauge, durationGauge *prometheus.GaugeVec) {
+	glog.V(0).Info("Running template controller smoketests")
+	first := true
 	for {
-		for step, r := range steps {
-			latency := rng.Int63n(int64(r.max)-int64(r.min)) + int64(r.min)
-			metric.With(prometheus.Labels{"step": step}).Observe(float64(latency / int64(time.Second)))
+		if !first {
+			time.Sleep(interval)
+		} else {
+			first = false
 		}
-		time.Sleep(interval)
+		doSmoketest(testGauge, launchGauge, durationGauge)
 	}
+}
+
+func doSmoketest(testGauge, launchGauge, durationGauge *prometheus.GaugeVec) {
+	var launchDuration, totalDuration float64
+	start := time.Now()
+	test, err := templates.NewSmoketest()
+	if err != nil {
+		totalDuration = time.Now().Sub(start).Seconds()
+		glog.Errorf("Failed initiating smoketest: %s", err)
+		publishResult(testGauge, launchGauge, durationGauge, launchDuration, totalDuration, err)
+		return
+	}
+	launchDuration, err = test.Run(keepObjects, timeout)
+	totalDuration = time.Now().Sub(start).Seconds()
+	publishResult(testGauge, launchGauge, durationGauge, launchDuration, totalDuration, err)
+}
+
+func publishResult(testGauge, launchGauge, durationGauge *prometheus.GaugeVec, launchDuration, totalDuration float64, err error) {
+	result := "success"
+	var reason string
+	if err != nil {
+		result = "failure"
+		reason = err.Error()
+	}
+	testGauge.WithLabelValues(result, reason).SetToCurrentTime()
+	launchGauge.WithLabelValues(result, reason).Set(launchDuration)
+	durationGauge.WithLabelValues(result, reason).Set(totalDuration)
 }

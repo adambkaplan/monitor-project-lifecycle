@@ -1,0 +1,86 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: openshift-template-monitor
+  annotations:
+    iconClass: icon-openshift
+    description: "Monitor the status of OpenShift's template components, with metrics consumable by Prometheus."
+    openshift.io/display-name: "Template Monitor"
+    openshift.io/long-description: "This template monitors the status of Openshift's templating system.\n\nMonitoring metrics are consumable by Prometheus."
+    openshift.io/documentation-url: "https://github.com/adambkaplan/openshift-template-monitor/blob/master/README.md"
+parameters:
+- name: ROLE_NAME
+  displayName: "OpenShift Role Name"
+  description: "The OpenShift Role which grants API permissions to the template monitor.\nThis role must have full permissions for Secrets, ConfigMaps, Templates, and Jobs."
+  value: template-monitor
+- name: ROLE_NAMESPACE
+  displayName: "OpenShift Role Namespace"
+  description: "The namespace for the OpenShift Role which grants API permissions to the template monitor."
+  value: template-monitor
+- name: LOG_LEVEL
+  displayName: "Log Level"
+  description: "Level of detail for log messages. Acceptable values are between 0 and 2."
+  value: "1"
+objects:
+  - kind: RoleBinding
+    apiVersion: v1
+    metadata:
+      name: openshift-template-monitor
+    subjects:
+    - kind: ServiceAccount
+      name: default
+    roleRef: 
+      name: ${ROLE_NAME}
+      namespace: ${ROLE_NAMESPACE}
+  - kind: Service
+    apiVersion: v1
+    metadata: 
+      name: openshift-template-monitor
+      labels:
+        app: openshift-template-monitor
+    spec: 
+      selector: 
+        app: openshift-template-monitor
+      ports:
+      - name: web
+        protocol: TCP
+        port: 8080
+        targetPort: web
+  - kind: Deployment
+    apiVersion: extensions/v1beta1
+    metadata:
+      name: openshift-template-monitor
+    spec:
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: openshift-template-monitor
+            version: "0.0.1"
+        spec:
+          containers:
+            - name: template-monitor
+            # This image setup is just for local development.
+              image: adambkaplan/openshift-template-monitor
+              imagePullPolicy: IfNotPresent
+              args:
+              - "--v=${LOG_LEVEL}"
+              ports:
+              - name: web
+                containerPort: 8080
+                protocol: TCP
+              resources:
+                requests:
+                  memory: 4Mi
+              readinessProbe:
+                timeoutSeconds: 10
+                initialDelaySeconds: 30
+                httpGet:
+                  path: /metrics
+                  port: 8080
+              livenessProbe:
+                timeoutSeconds: 10
+                initialDelaySeconds: 30
+                httpGet:
+                  path: /healthz
+                  port: 8080

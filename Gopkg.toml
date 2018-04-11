@@ -24,7 +24,7 @@
 #   go-tests = true
 #   unused-packages = true
 
-ignored = ["github.com/openshift/monitor-project-lifecycle/tools*"]
+ignored = ["github.com/openshift/openshift-template-monitor/tools*"]
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

@@ -2,11 +2,11 @@
 
 # This script provides constants for the Golang binary build process
 
-readonly OS_GO_PACKAGE=github.com/openshift/monitor-project-lifecycle
+readonly OS_GO_PACKAGE=github.com/adambkaplan/openshift-template-monitor
 
-readonly OS_BUILD_ENV_GOLANG="${OS_BUILD_ENV_GOLANG:-1.9}"
+readonly OS_BUILD_ENV_GOLANG="${OS_BUILD_ENV_GOLANG:-1.8}"
 readonly OS_BUILD_ENV_IMAGE="${OS_BUILD_ENV_IMAGE:-openshift/origin-release:golang-${OS_BUILD_ENV_GOLANG}}"
-readonly OS_REQUIRED_GO_VERSION="go1.9"
+readonly OS_REQUIRED_GO_VERSION="go1.8"
 readonly OS_BUILD_ENV_WORKINGDIR="/go/${OS_GO_PACKAGE}"
 
 readonly OS_OUTPUT_BASEPATH="${OS_OUTPUT_BASEPATH:-_output}"
@@ -30,6 +30,8 @@ readonly OS_CROSS_COMPILE_TARGETS=(
 readonly OS_CROSS_COMPILE_BINARIES=("${OS_CROSS_COMPILE_TARGETS[@]##*/}")
 
 readonly OS_TEST_TARGETS=( )
+
+OS_IMAGE_PREFIX="adambkaplan"
 
 # os::build::get_product_vars exports variables that we expect to change
 # depending on the distribution of Origin
@@ -142,11 +144,11 @@ function os::util::list_go_deps() {
 
 # OS_ALL_IMAGES is the list of images built by os::build::images.
 readonly OS_ALL_IMAGES=(
-  openshift/openshift-monitor-project-lifecycle
+  adambkaplan/openshift-template-smoketest
 )
 
 # os::build::images builds all images in this repo.
 function os::build::images() {
-  tag_prefix="${OS_IMAGE_PREFIX:-"openshift/openshift"}"
-  os::build::image "${tag_prefix}-monitor-project-lifecycle" images/openshift-monitor-project-lifecycle
+  tag_prefix="${OS_IMAGE_PREFIX:-"adambkaplan/openshift"}"
+  os::build::image "${tag_prefix}-template-smoketest" images/openshift-template-smoketest
 }

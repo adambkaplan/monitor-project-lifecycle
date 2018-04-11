@@ -1,0 +1,34 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: template-monitor
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - create
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - create
+  - delete
+- apiGroups:
+  - template.openshift.io
+  resources:
+  - templates
+  - templateconfigs
+  - templateinstances
+  verbs:
+  - get
+  - create
+  - update
+  - delete
+  - watch

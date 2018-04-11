@@ -6,27 +6,27 @@ The purpose of this document is to describe the workflow that will be used to mo
 
 1. Project Name:
 
-   The project name will be passed into the monitor-project-lifecycle app. This means that monitor-project-lifecycle will NOT generate a unique ID for the project name.
+   The project name will be passed into the openshift-template-monitor app. This means that openshift-template-monitor will NOT generate a unique ID for the project name.
 
    Rough CLI equivalent:
    ```
-   export project="os-monitor-project-lifecycle"
+   export project="os-openshift-template-monitor"
    ```
 
-   NOTE: if it is desired for monitor-project-lifecycle to use a namespace that starts with openshift-\* or kube-\*, then the service account monitor-project-lifecycle will use MUST have rights to create projects with those prefixes.
+   NOTE: if it is desired for openshift-template-monitor to use a namespace that starts with openshift-\* or kube-\*, then the service account openshift-template-monitor will use MUST have rights to create projects with those prefixes.
 
 1. Garbage collection:
 
-   The first thing monitor-project-lifecycle will do is to check to see if a project it will create the app in exists. If it does, then it will delete it. Because of this, it is expected that monitor-project-lifecycle app will be run a single time with the same project name.
+   The first thing openshift-template-monitor will do is to check to see if a project it will create the app in exists. If it does, then it will delete it. Because of this, it is expected that openshift-template-monitor app will be run a single time with the same project name.
 
    Rough CLI equivalent:
    ```
    oc get project "$project" &> /dev/null && oc delete project "$project"
    ```
 
-   This is essential in order to guarantee monitor-project-lifecycle is able to test deploying an application in a clean environment. Otherwise, cruft left around from previous, possibly failed runs may cause additional failed runs.
+   This is essential in order to guarantee openshift-template-monitor is able to test deploying an application in a clean environment. Otherwise, cruft left around from previous, possibly failed runs may cause additional failed runs.
 
-   Since we do this at the beginning of the monitor-project-lifecycle, it also means that we don't necessarily need to try to clean up the project at the end of our run. It may, however, be desirable to do this clean up both at the beginning as well as at the end of the monitored loop.
+   Since we do this at the beginning of the openshift-template-monitor, it also means that we don't necessarily need to try to clean up the project at the end of our run. It may, however, be desirable to do this clean up both at the beginning as well as at the end of the monitored loop.
 
 1. Create Project:
 
@@ -140,6 +140,6 @@ The purpose of this document is to describe the workflow that will be used to mo
 1. Open Questions:
    * Should we cleanup the project on both the start of the loop and the end of the loop?
    * What rights are needed to create openshift-\* and kube-\* namespaces?
-      * How do we grant those rights to the service account that monitor-project-lifecycle will use?
-   * Should the stored template to use be a parameter to monitor-project-lifecycle?
+      * How do we grant those rights to the service account that openshift-template-monitor will use?
+   * Should the stored template to use be a parameter to openshift-template-monitor?
       * Would be more flexible, but we'll also need to pass in the details of the deployed app. e.g. dc name, service name, route name, etc.
