@@ -21,6 +21,10 @@ parameters:
   displayName: "Log Level"
   description: "Level of detail for log messages. Acceptable values are between 0 and 2."
   value: "1"
+- name: VERSION
+  displayName: "Version"
+  description: "Version of the template monitor to deploy"
+  value: "v0.0.1-alpha"
 objects:
   - kind: RoleBinding
     apiVersion: v1
@@ -56,12 +60,11 @@ objects:
         metadata:
           labels:
             app: openshift-template-monitor
-            version: "0.0.1"
+            version: "${VERSION}"
         spec:
           containers:
             - name: template-monitor
-            # This image setup is just for local development.
-              image: adambkaplan/openshift-template-monitor
+              image: docker.io/adambkaplan/openshift-template-monitor:${VERSION}
               imagePullPolicy: IfNotPresent
               args:
               - "--v=${LOG_LEVEL}"

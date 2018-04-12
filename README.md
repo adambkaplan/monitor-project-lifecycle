@@ -12,9 +12,9 @@ This procedure assumes that you have developer access to a running OpenShift clu
 ```
 git clone https://github.com/adambkaplan/openshift-template-monitor.git
 ```
-2. Create an OpenShift project to run the application in - the recommended default is `template-smoketest`
+2. Create an OpenShift project to run the application in - the recommended default is `template-monitor`
 ```
-$: oc new-project template-smoketest
+$: oc new-project template-monitor
 ```
 3. Run the install script:
 ```

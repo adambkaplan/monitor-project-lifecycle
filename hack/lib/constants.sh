@@ -31,7 +31,7 @@ readonly OS_CROSS_COMPILE_BINARIES=("${OS_CROSS_COMPILE_TARGETS[@]##*/}")
 
 readonly OS_TEST_TARGETS=( )
 
-OS_IMAGE_PREFIX="adambkaplan"
+OS_IMAGE_PREFIX="adambkaplan/openshift"
 
 # os::build::get_product_vars exports variables that we expect to change
 # depending on the distribution of Origin
@@ -144,11 +144,11 @@ function os::util::list_go_deps() {
 
 # OS_ALL_IMAGES is the list of images built by os::build::images.
 readonly OS_ALL_IMAGES=(
-  adambkaplan/openshift-template-smoketest
+  adambkaplan/openshift-template-monitor
 )
 
 # os::build::images builds all images in this repo.
 function os::build::images() {
   tag_prefix="${OS_IMAGE_PREFIX:-"adambkaplan/openshift"}"
-  os::build::image "${tag_prefix}-template-smoketest" images/openshift-template-smoketest
+  os::build::image "${tag_prefix}-template-monitor" images/openshift-template-monitor
 }
