@@ -25,6 +25,10 @@ parameters:
   displayName: "Version"
   description: "Version of the template monitor to deploy"
   value: "v0.0.1-alpha"
+- name: INTERVAL
+  displayName: "Interval"
+  description: "Frequency at which the template monitor test runs, in seconds."
+  value: "300"
 objects:
   - kind: RoleBinding
     apiVersion: v1
@@ -68,6 +72,7 @@ objects:
               imagePullPolicy: IfNotPresent
               args:
               - "--v=${LOG_LEVEL}"
+              - "--interval=${INTERVAL}"
               ports:
               - name: web
                 containerPort: 8080
